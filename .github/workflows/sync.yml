@@ -21,9 +21,7 @@ jobs:
           git config core.sparseCheckout true
           echo "libraries/SensEdu/*" >> .git/info/sparse-checkout
 
-          # Merge changes from the original repository
-          git checkout main
+          git checkout master
           git merge upstream/main --allow-unrelated-histories -m "Sync: Update from original repo"
 
-          # Push changes to your new repository
           git push origin master
