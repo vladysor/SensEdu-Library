@@ -1,6 +1,6 @@
 on:
   schedule:
-    - cron: '0 * * * *' # every hour
+    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 * * * *' # every hour
   workflow_dispatch: # allow manual
 
 jobs:
@@ -26,5 +26,11 @@ jobs:
           rm -r libraries
 
           git add .
-          git commit -m "Sync: Update from original repo libraries/SensEdu"
+
+          if git diff-index --quiet HEAD --; then
+            echo "No changes, exiting..."
+            exit 0
+          fi
+          
+          git commit -m "Sync: Updates from original repo libraries/SensEdu"
           git push origin master
