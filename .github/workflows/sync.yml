@@ -21,10 +21,10 @@ jobs:
           git remote add upstream https://github.com/ShiegeChan/SensEdu.git
           git fetch upstream
 
-          git config core.sparseCheckout true
-          echo "libraries/SensEdu/*" >> .git/info/sparse-checkout
+          #git config core.sparseCheckout true
+          #echo "libraries/SensEdu/*" >> .git/info/sparse-checkout
 
           git checkout master
-          git merge -X ours upstream/main --allow-unrelated-histories -m "Sync: Update from original repo"
+          git merge -X ours upstream/main/libraries/SensEdu --allow-unrelated-histories -m "Sync: Update from original repo libraries/SensEdu"
 
           git push origin master
