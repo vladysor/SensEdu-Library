@@ -1,0 +1,29 @@
+on:
+  schedule:
+    - cron: '0 * * * *' # every hour
+  workflow_dispatch: # allow manual
+
+jobs:
+  sync:
+    name: Sync SensEdu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Library Repo
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Sync Original Folder
+        run: |
+          git remote add upstream https://github.com/ShiegeChan/SensEdu.git
+          git fetch upstream
+
+          git config core.sparseCheckout true
+          echo "libraries/SensEdu/*" >> .git/info/sparse-checkout
+
+          # Merge changes from the original repository
+          git checkout main
+          git merge upstream/main --allow-unrelated-histories -m "Sync: Update from original repo"
+
+          # Push changes to your new repository
+          git push origin master
