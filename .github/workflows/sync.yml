@@ -8,23 +8,20 @@ jobs:
     name: Sync SensEdu
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Library Repo
-        uses: actions/checkout@v4
-        with:
-          ref: master
-
       - name: Sync Original Folder
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          git checkout master
         
           git remote add upstream https://github.com/ShiegeChan/SensEdu.git
           git fetch upstream
 
-          #git config core.sparseCheckout true
-          #echo "libraries/SensEdu/*" >> .git/info/sparse-checkout
+          git checkout upstream/main -- libraries/SensEdu
+          cp -r -f libraries/SensEdu/* ./
+          rm -r libraries
 
-          git checkout master
-          git merge -X ours upstream/main/libraries/SensEdu --allow-unrelated-histories -m "Sync: Update from original repo libraries/SensEdu"
-
+          git add .
+          git commit -m "Sync: Update from original repo libraries/SensEdu"
           git push origin master
