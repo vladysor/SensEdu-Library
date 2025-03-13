@@ -27,4 +27,7 @@ jobs:
           git checkout master
           git merge upstream/main --allow-unrelated-histories -m "Sync: Update from original repo"
 
-          git push origin master
+          # git push origin master
+
+          # git reset --hard upstream/main
+          git push origin master --force
