@@ -25,7 +25,7 @@
 </p>
 </b>
 
-## This is separate library repo, refer to the main [SensEdu Repository] for details
+## This is a separate library repo, refer to the main [SensEdu Repo] for details
 
 <p align="center" style="margin:0">
   <img src="https://ik.imagekit.io/vladysor/SensEdu/UltraSoundDistanceMeasurements.png?updatedAt=1737991669929" width="49%">
@@ -35,4 +35,4 @@
   <img src="https://ik.imagekit.io/vladysor/SensEdu/FMCW.png?updatedAt=1741703584379">
 </p>
 
-[SensEdu Repository]: https://github.com/ShiegeChan/SensEdu
+[SensEdu Repo]: https://github.com/ShiegeChan/SensEdu
