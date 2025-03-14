@@ -25,7 +25,7 @@
 </p>
 </b>
 
-## This is separate Library repository, refer to the main [SensEdu Repository] for details
+## This is separate library repo, refer to the main [SensEdu Repository] for details
 
 <p align="center" style="margin:0">
   <img src="https://ik.imagekit.io/vladysor/SensEdu/UltraSoundDistanceMeasurements.png?updatedAt=1737991669929" width="49%">
