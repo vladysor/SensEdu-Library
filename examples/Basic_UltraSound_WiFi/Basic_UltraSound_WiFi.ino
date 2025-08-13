@@ -139,12 +139,9 @@ void handle_error() {
     digitalWrite(error_led, LOW);
 }
 
-// send data in 32 byte chunks
+// send data in a single chunk
 void wifi_send_array(const uint8_t* data, size_t size, WiFiClient client) {
-    const size_t chunk_size = 32;
-    for (uint32_t i = 0; i < size/chunk_size; i++) {
-		client.write(data + chunk_size * i, chunk_size);
-	}
+    client.write(data, size);
 }
 
 void printWifiStatus() {
