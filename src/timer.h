@@ -10,13 +10,18 @@ extern "C" {
 
 typedef enum {
     TIMER_ERROR_NO_ERRORS = 0x00,
-    TIMER_ERROR_TIM4_BAD_SET_FREQUENCY = 0x01
+    TIMER_ERROR_TIM4_BAD_SET_FREQUENCY = 0x01,
+    TIMER_ERROR_TIM8_INIT_WHILE_RUNNING = 0x02,
+    TIMER_ERROR_TIM8_WRONG_DUTY_CHANNEL = 0x03,
+
+    TIMER_ERROR_TIM8_CRITICAL_FREQ_CALCULATION_BUG = 0xA0
 } TIMER_ERROR;
 
 void SensEdu_TIMER_DelayInit(void);
 void SensEdu_TIMER_Delay_us(uint32_t delay_us);
 
 TIMER_ERROR TIMER_GetError(void);
+
 void TIMER_ADC1Init(void);
 void TIMER_DAC1Init(uint32_t freq);
 void TIMER_ADC1Enable(void);
@@ -25,6 +30,12 @@ void TIMER_ADC1Disable(void);
 void TIMER_DAC1Disable(void);
 void TIMER_ADC1SetFreq(uint32_t freq);
 void TIMER_DAC1SetFreq(uint32_t freq);
+
+void TIMER_PWMInit(void);
+void TIMER_PWMEnable(void);
+void TIMER_PWMDisable(void);
+void TIMER_PWMSetFreq(uint32_t freq);
+void TIMER_PWMSetDutyCycle(uint8_t channel, uint8_t duty_cycle);
 
 
 #ifdef __cplusplus

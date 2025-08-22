@@ -30,5 +30,11 @@ SENSEDU_ERROR SensEdu_GetError(void) {
         return error;
     }
 
+    error |= PWM_GetError();
+    if (error) {
+        error |= SENSEDU_ERROR_PWM;
+        return error;
+    }
+
     return error;
 }
