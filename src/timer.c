@@ -3,11 +3,9 @@
 /* -------------------------------------------------------------------------- */
 /*                                  Variables                                 */
 /* -------------------------------------------------------------------------- */
-
-#define TIM_CLK         240000000
-#define DAC_PRESC_FREQ  120000000       // Desired freq after prescaler for DAC
-#define ADC_PRESC_FREQ  60000000        // Desired freq after prescaler for ADC
-
+#define TIM_CLK                 240000000UL
+#define PSC_1US                 (TIM_CLK / 1000000UL)
+#define DELAY_CPU_OVERHEAD_NS   550
 
 static TIMER_ERROR error = TIMER_ERROR_NO_ERRORS;
 static volatile uint8_t delay_flag = 0;
@@ -15,10 +13,13 @@ static volatile uint8_t delay_flag = 0;
 /* -------------------------------------------------------------------------- */
 /*                                Declarations                                */
 /* -------------------------------------------------------------------------- */
-void tim1_adc1_init(void);
-void tim2_delay_init(void);
-void tim4_dac1_init(void);
-void tim8_pwm_init(void);
+static void calculate_tim_freq_settings_16bit(uint32_t freq, uint16_t *PSC, uint16_t *ARR);
+static void calculate_tim_freq_settings_32bit(uint32_t freq, uint16_t *PSC, uint32_t *ARR);
+static inline uint32_t ns_to_ticks(uint32_t ns);
+static void tim1_adc1_init(void);
+static void tim2_delay_init(void);
+static void tim4_dac1_init(void);
+static void tim8_pwm_init(void);
 
 /* -------------------------------------------------------------------------- */
 /*                              Public Functions                              */
@@ -28,8 +29,43 @@ void SensEdu_TIMER_DelayInit(void) {
 }
 
 void SensEdu_TIMER_Delay_us(uint32_t delay_us) {
+    if (delay_us <= 1000U) {
+        SensEdu_TIMER_Delay_ns(delay_us*1000);
+        return;
+    }
     delay_flag = 1;
-    WRITE_REG(TIM2->ARR, delay_us);
+    WRITE_REG(TIM2->PSC, PSC_1US - 1U);
+    WRITE_REG(TIM2->ARR, delay_us - 1U);
+    WRITE_REG(TIM2->CNT, 0U);
+    SET_BIT(TIM2->CR1, TIM_CR1_CEN);
+    while(delay_flag == 1);
+}
+
+void SensEdu_TIMER_Delay_ns(uint32_t delay_ns) {
+    if (delay_ns < 1U) {
+        error = TIMER_ERROR_BAD_SET_DELAY;
+        return;
+    }
+    if (delay_ns > 1000000UL) {
+        // avoid ticks macro overflow fo delays > 1ms
+        SensEdu_TIMER_Delay_us(delay_ns/1000);
+        return;
+    }
+
+    // CPU overhead compensation
+    if (delay_ns > DELAY_CPU_OVERHEAD_NS) {
+        delay_ns -= DELAY_CPU_OVERHEAD_NS;
+    } else {
+        delay_ns = 1;
+    }
+
+    delay_flag = 1;
+    WRITE_REG(TIM2->PSC, 0U); // set finest resolution
+    uint32_t arr = ns_to_ticks(delay_ns); // minimum tick is ~4.17ns
+    if (arr < 2U) {
+        arr = 2U;
+    }
+    WRITE_REG(TIM2->ARR, arr - 1U); // minimum ARR is 1
     WRITE_REG(TIM2->CNT, 0U);
     SET_BIT(TIM2->CR1, TIM_CR1_CEN);
     while(delay_flag == 1);
@@ -68,27 +104,26 @@ void TIMER_DAC1Disable(void) {
 
 void TIMER_ADC1SetFreq(uint32_t freq) {
     if (freq < 0 || freq > (TIM_CLK/2)) {
-        //error = TIMER_ERROR_TIM1_BAD_SET_FREQUENCY;
+        error = TIMER_ERROR_TIM1_BAD_SET_FREQUENCY;
         return;
     }
-    // Calculate the timer values
-    uint32_t psc, arr;
-    calculate_timer_values(freq, &psc, &arr);
 
-    // Set the timer registers
+    uint16_t psc, arr;
+    calculate_tim_freq_settings_16bit(freq, &psc, &arr);
     WRITE_REG(TIM1->PSC, psc);
     WRITE_REG(TIM1->ARR, arr);
 }
 
 void TIMER_DAC1SetFreq(uint32_t freq) {
-    if (freq < 0 || freq > (DAC_PRESC_FREQ/2)) {
-        // minimum ARR is 1
+    if (freq < 0 || freq > (TIM_CLK/2)) {
         error = TIMER_ERROR_TIM4_BAD_SET_FREQUENCY;
         return;
     }
-    float periodf = (float)DAC_PRESC_FREQ/freq;
-    uint32_t period = (uint32_t)lroundf(periodf); // period = ARR + 1
-    WRITE_REG(TIM4->ARR, period - 1U);
+
+    uint16_t psc, arr;
+    calculate_tim_freq_settings_16bit(freq, &psc, &arr);
+    WRITE_REG(TIM4->PSC, psc);
+    WRITE_REG(TIM4->ARR, arr);
 }
 
 void TIMER_PWMInit(void) {
@@ -106,36 +141,9 @@ void TIMER_PWMDisable(void) {
 }
 
 void TIMER_PWMSetFreq(uint32_t freq) {
-    uint32_t arr = 0;
-    uint16_t psc = 0;
+    uint16_t psc, arr;
+    calculate_tim_freq_settings_16bit(freq, &psc, &arr);
 
-    // try PSC = 0
-    arr = TIM_CLK/freq - 1;
-    if (arr > 0 && arr <= 65535) {
-        WRITE_REG(TIM8->PSC, 0U);
-        WRITE_REG(TIM8->ARR, arr);
-        return;
-    }
-    if (arr < 1) {
-        error = TIMER_ERROR_TIM8_CRITICAL_FREQ_CALCULATION_BUG;
-        return;
-    }
-
-    // compute minimal PSC
-    psc = TIM_CLK/(freq*65536) - 1;
-    if (psc > 65535) {
-        error = TIMER_ERROR_TIM8_CRITICAL_FREQ_CALCULATION_BUG;
-        return;
-    }
-    arr = TIM_CLK/(freq * (psc + 1)) - 1;
-    if (arr > 65535) {
-        psc += 1; // fix for rounding errors
-        arr = TIM_CLK/(freq * (psc + 1)) - 1;
-        if (arr > 65535) {
-            error = TIMER_ERROR_TIM8_CRITICAL_FREQ_CALCULATION_BUG;
-            return;
-        }
-    }
     WRITE_REG(TIM8->PSC, psc);
     WRITE_REG(TIM8->ARR, arr);
 }
@@ -160,55 +168,82 @@ void TIMER_PWMSetDutyCycle(uint8_t channel, uint8_t duty_cycle) {
             error = TIMER_ERROR_TIM8_WRONG_DUTY_CHANNEL;
             break;
     }
-    
 }
 
 /* -------------------------------------------------------------------------- */
 /*                              Private Functions                             */
 /* -------------------------------------------------------------------------- */
-void calculate_timer_values(uint32_t freq, uint32_t *PSC, uint32_t *ARR) {
-    // uint32_t PSC_MAX = 65535; // 2^16-1
-    // uint32_t ARR_MAX = 65535; 
-    uint32_t psc, arr; 
-    float min_error = 9999999; // very large number
-    uint32_t best_psc = 0, best_arr = 1;
-    
-    // go through psc values
-    for (psc = 1; psc <= 65535; psc++) {
-        // calculate arr value from the formula
-        arr = (uint32_t)((float)TIM_CLK / (freq * (psc + 1)) - 1);
+static void calculate_tim_freq_settings_16bit(uint32_t freq, uint16_t *PSC, uint16_t *ARR) {
+    uint32_t arr = 0;
+    uint16_t psc = 0;
 
-        // check if it goes beyond the max limit
-        if (arr > 65535) continue;
+    // try PSC = 0
+    arr = TIM_CLK/freq - 1;
+    if (arr > 0 && arr <= UINT16_MAX) {
+        *PSC = 0U;
+        *ARR = (uint16_t)arr;
+        return;
+    }
+    if (arr < 1) {
+        error = TIMER_ERROR_CRITICAL_FREQ_CALCULATION_BUG;
+        return;
+    }
 
-        // calculate the error between the desired frequency and frequency using the current parameters
-        float error = fabsf(freq - (float)TIM_CLK / ((psc + 1) * (arr + 1)));
-
-        // update best parameters if the error is smaller
-        if (error < min_error) {
-            min_error = error;
-            best_psc = psc;
-            best_arr = arr;
+    // compute minimal PSC
+    psc = TIM_CLK/(freq*(UINT16_MAX + 1)) - 1;
+    if (psc > UINT16_MAX) {
+        error = TIMER_ERROR_CRITICAL_FREQ_CALCULATION_BUG;
+        return;
+    }
+    arr = TIM_CLK/(freq * (psc + 1)) - 1;
+    if (arr > UINT16_MAX) {
+        psc += 1; // fix for rounding errors
+        arr = TIM_CLK/(freq * (psc + 1)) - 1;
+        if (arr > UINT16_MAX) {
+            error = TIMER_ERROR_CRITICAL_FREQ_CALCULATION_BUG;
+            return;
         }
     }
-    // assign the values 
-    *PSC = best_psc;
-    *ARR = best_arr;
+    *PSC = psc;
+    *ARR = (uint16_t)arr;
 }
 
-void tim1_adc1_init(void) {
+static void calculate_tim_freq_settings_32bit(uint32_t freq, uint16_t *PSC, uint32_t *ARR) {
+    uint32_t arr = 0;
+    uint16_t psc = 0;
+
+    // PSC = 0 will always succeed since 32bit ARR with 240MHz TIM_CLK allows up to ~0.06Hz frequencies
+    arr = TIM_CLK/freq - 1;
+    if (arr > 0) {
+        *PSC = 0U;
+        *ARR = arr;
+        return;
+    }
+    if (arr < 1) {
+        error = TIMER_ERROR_CRITICAL_FREQ_CALCULATION_BUG;
+        return;
+    }
+}
+
+// convert nanoseconds to ticks due to step 1ns not being possible
+// finest resolution is ~4.17ns, which tick is a multiple of
+static inline uint32_t ns_to_ticks(uint32_t ns) {
+    return ((ns * PSC_1US) / 1000);
+}
+
+static void tim1_adc1_init(void) {
     // Clock
     SET_BIT(RCC->APB2ENR, RCC_APB2ENR_TIM1EN);
 
     // Frequency settings
-    WRITE_REG(TIM1->PSC, 2U - 1U); // default
-    WRITE_REG(TIM1->ARR, 60U - 1U); // default
+    WRITE_REG(TIM1->PSC, 1U - 1U); // default
+    WRITE_REG(TIM1->ARR, 120U - 1U); // default
 
     // update event is trigger output
     MODIFY_REG(TIM1->CR2, TIM_CR2_MMS, 0b010 << TIM_CR2_MMS_Pos);
 }
 
-void tim2_delay_init(void) {
+static void tim2_delay_init(void) {
     // Clock
     SET_BIT(RCC->APB1LENR, RCC_APB1LENR_TIM2EN);
 
@@ -224,19 +259,19 @@ void tim2_delay_init(void) {
     NVIC_EnableIRQ(TIM2_IRQn);
 }
 
-void tim4_dac1_init(void) {
+static void tim4_dac1_init(void) {
     // Clock
     SET_BIT(RCC->APB1LENR, RCC_APB1LENR_TIM4EN);
 
     // Frequency settings
-    WRITE_REG(TIM4->PSC, (TIM_CLK/DAC_PRESC_FREQ) - 1U); // default
+    WRITE_REG(TIM4->PSC, 1U - 1U); // default
     WRITE_REG(TIM4->ARR, 120U - 1U); // default
 
     // update event is trigger output
     MODIFY_REG(TIM4->CR2, TIM_CR2_MMS, 0b010 << TIM_CR2_MMS_Pos);
 }
 
-void tim8_pwm_init(void) {
+static void tim8_pwm_init(void) {
     if (READ_BIT(TIM8->CR1, TIM_CR1_CEN)) {
         error = TIMER_ERROR_TIM8_INIT_WHILE_RUNNING;
         return;
