@@ -86,8 +86,7 @@ void setup() {
     }
     server.begin();
     // connection established; print out the status:
-    printWifiStatus();
-
+    print_wifi_status();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -135,8 +134,10 @@ void loop() {
 /*                                  Functions                                 */
 /* -------------------------------------------------------------------------- */
 void handle_error() {
-    // serial is taken by matlab, use LED as indication
     digitalWrite(error_led, LOW);
+    Serial.print("Error: 0x");
+    Serial.println(lib_error, HEX);
+    delay(1000);
 }
 
 // send data in a single chunk
@@ -144,19 +145,19 @@ void wifi_send_array(const uint8_t* data, size_t size, WiFiClient client) {
     client.write(data, size);
 }
 
-void printWifiStatus() {
-  // print the SSID of the network youre connected to
-  Serial.print("SSID: ");
-  Serial.println(WiFi.SSID());
+void print_wifi_status(void) {
+    // print the SSID of the network youre connected to
+    Serial.print("SSID: ");
+    Serial.println(WiFi.SSID());
 
-  // print your boards local IP address
-  IPAddress ip = WiFi.localIP();
-  Serial.print("IP Address: ");
-  Serial.println(ip);
+    // print your boards local IP address
+    IPAddress ip = WiFi.localIP();
+    Serial.print("IP Address: ");
+    Serial.println(ip);
 
-  // print the received WiFi signal strength
-  long rssi = WiFi.RSSI();
-  Serial.print("signal strength (RSSI):");
-  Serial.print(rssi);
-  Serial.println(" dBm");
+    // print the received WiFi signal strength
+    long rssi = WiFi.RSSI();
+    Serial.print("signal strength (RSSI):");
+    Serial.print(rssi);
+    Serial.println(" dBm");
 }
