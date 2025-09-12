@@ -5,13 +5,13 @@ close all;
 clc;
 
 %% Settings
-ARDUINO_PORT = 'COM4';
+ARDUINO_PORT = 'COM18';
 ARDUINO_BAUDRATE = 115200;
 ITERATIONS = 10000;
 
 ACTIVATE_PLOTS = true;
 
-DATA_LENGTH = 16*128*2; % make sure to match this number with firmware
+DATA_LENGTH = 2048*2; % make sure to match this number with firmware
 
 %% Arduino Setup
 arduino = serialport(ARDUINO_PORT, ARDUINO_BAUDRATE); % select port and baudrate

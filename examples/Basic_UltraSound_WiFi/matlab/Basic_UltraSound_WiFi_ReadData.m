@@ -11,7 +11,7 @@ ITERATIONS = 10000;
 
 ACTIVATE_PLOTS = true;
 
-DATA_LENGTH = 16*128; % make sure to match this number with firmware
+DATA_LENGTH = 2000; % make sure to match this number with firmware
 
 %% Arduino Setup
 arduino_server = tcpclient(ARDUINO_IP, ARDUINO_PORT); % connect to Arduino

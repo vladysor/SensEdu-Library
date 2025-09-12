@@ -28,6 +28,19 @@ extern "C" {
 #define MPU_REGION_SIZE_ATTRIBUTE(mem_size) \
     ((uint32_t)(MPU_LOG_BASE2(MPU_REGION_SIZE_BYTES(mem_size)) - 1) << MPU_RASR_SIZE_Pos)
 
+// DCache calculation:
+//
+// forces the buffer to be a multiple of DCache line size
+
+// calculate how far the buffer size is from being a DCache multiple
+// DCache is 32bytes for stm32h747, meaning multiple of 16 for uint16_t buffer
+#define DCACHE_REMINDER(x) \
+    (x % (__SCB_DCACHE_LINE_SIZE/2))
+
+// calculate the next multiple of D-Cache line size
+#define DCACHE_NEXT_MULTIPLE(x) \
+    (DCACHE_REMINDER(x) == 0) ? x : (x - DCACHE_REMINDER(x) + (__SCB_DCACHE_LINE_SIZE/2))
+
 // DMA buffers:
 //
 // aligned with power of two buffer size (required for MPU config)
@@ -36,8 +49,10 @@ extern "C" {
     uint16_t name[MPU_NEXT_POWER_OF_2(user_size * 2) / 2] \
     __attribute__((aligned(MPU_NEXT_POWER_OF_2(user_size * 2))))
 
-// aligned with DCache line size
-#define SENSEDU_ADC_BUFFER(name, size) uint16_t name[size] \
+// forces alignment and ensures the buffer size is a multiple of the D-Cache line size
+// hard coded for 16bit variable
+#define SENSEDU_ADC_BUFFER(name, size) \
+    uint16_t name[DCACHE_NEXT_MULTIPLE(size)] \
     __attribute__((aligned(__SCB_DCACHE_LINE_SIZE)))
 
 

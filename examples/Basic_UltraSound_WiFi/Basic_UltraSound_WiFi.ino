@@ -5,6 +5,9 @@
 /* -------------------------------------------------------------------------- */
 /*                                  Settings                                  */
 /* -------------------------------------------------------------------------- */
+#define WIFI_SSID   "TestWiFi"
+#define WIFI_PASS   "TestWiFi"
+#define WIFI_PORT   80
 
 /* DAC */
 // lut settings are in SineLUT.h
@@ -22,8 +25,8 @@ SensEdu_DAC_Settings dac_settings = {
 };
 
 /* ADC */
-const uint16_t mic_data_size = 16*128; // must be multiple of 16 for 16bit
-__attribute__((aligned(__SCB_DCACHE_LINE_SIZE))) uint16_t mic_data[mic_data_size]; // cache aligned
+const uint16_t mic_data_size = 2000;
+SENSEDU_ADC_BUFFER(mic_data, mic_data_size);
 
 ADC_TypeDef* adc = ADC1;
 const uint8_t mic_num = 1;
@@ -41,14 +44,9 @@ SensEdu_ADC_Settings adc_settings = {
     .mem_size = mic_data_size
 };
 
-/* WiFi settings */
-char *ssid = "TestWifi";
-char *pass = "test1234";
-uint16_t port = 80;
-
+/* WiFi */
 int status = WL_IDLE_STATUS;
-
-WiFiServer server(port);
+WiFiServer server(WIFI_PORT);
 
 /* errors */
 uint32_t lib_error = 0;
@@ -74,18 +72,17 @@ void setup() {
         handle_error();
     }
 
-    // attempt connection to WiFi network
     while (status != WL_CONNECTED) {
         Serial.print("Attempting to connect to SSID: ");
-        Serial.println(ssid);
+        Serial.println(WIFI_SSID);
+
         // connect to WPA/WPA2 network (change this if youre using open / WEP network)
-        status = WiFi.begin(ssid, pass);
+        status = WiFi.begin(WIFI_SSID, WIFI_PASS);
 
         // wait 10 seconds for connection:
         delay(10000);
     }
     server.begin();
-    // connection established; print out the status:
     print_wifi_status();
 }
 
@@ -93,41 +90,47 @@ void setup() {
 /*                                    Loop                                    */
 /* -------------------------------------------------------------------------- */
 void loop() {
-
-    // Measurement is initiated by the signal from computing device
-    WiFiClient client = server.available();
-
-    if (client) {
-        Serial.println("Client connected!");
-        static char buf = 0;
-        
-        while(client.connected()){
-            if (client.available()) {
-                buf = client.read();
-                if(buf == 't') { // trigger detected -> send
-                
-                    // start dac->adc sequence
-                    SensEdu_DAC_Enable(dac_ch);
-                    while(!SensEdu_DAC_GetBurstCompleteFlag(dac_ch));
-                    SensEdu_DAC_ClearBurstCompleteFlag(dac_ch);
-                    SensEdu_ADC_Start(adc);
-                    
-                    // wait for the data and send it
-                    while(!SensEdu_ADC_GetTransferStatus(adc));
-                    SensEdu_ADC_ClearTransferStatus(adc);
-                    wifi_send_array((const uint8_t *) & mic_data, mic_data_size << 1, client);
-
-                    // check errors
-                    lib_error = SensEdu_GetError();
-                    while (lib_error != 0) {
-                        handle_error();
-                    }
-
-                }
-            }
-        }
+    lib_error = SensEdu_GetError();
+    while (lib_error != 0) {
+        handle_error();
     }
 
+    WiFiClient client = server.available();
+    if (!client) {
+        return;
+    }
+    Serial.println("Client connected!");
+
+    // Measurement is initiated by the signal from computing device (matlab script)
+    static char buf = 0;
+
+    while(client.connected()) {
+        if (!client.available()) {
+            continue;
+        }
+
+        buf = client.read();
+        if (buf != 't') { // trigger not detected
+            continue;
+        }
+            
+        // start dac->adc sequence
+        SensEdu_DAC_Enable(dac_ch);
+        while(!SensEdu_DAC_GetBurstCompleteFlag(dac_ch));
+        SensEdu_DAC_ClearBurstCompleteFlag(dac_ch);
+        SensEdu_ADC_Start(adc);
+        
+        // wait for the data and send it
+        while(!SensEdu_ADC_GetTransferStatus(adc));
+        SensEdu_ADC_ClearTransferStatus(adc);
+        wifi_send_array(client, (const uint8_t *) & mic_data, mic_data_size << 1);
+
+        // check errors
+        lib_error = SensEdu_GetError();
+        while (lib_error != 0) {
+            handle_error();
+        }
+    }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -140,8 +143,7 @@ void handle_error() {
     delay(1000);
 }
 
-// send data in a single chunk
-void wifi_send_array(const uint8_t* data, size_t size, WiFiClient client) {
+void wifi_send_array(WiFiClient client, const uint8_t* data, size_t size) {
     client.write(data, size);
 }
 

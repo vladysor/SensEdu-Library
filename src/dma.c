@@ -115,6 +115,17 @@ void DMA_ADCEnable(ADC_TypeDef* adc) {
         error = DMA_ERROR_ADC_WRONG_INPUT;
     }
 
+    /*
+    This block has been removed because the buffers are now defined using the macro 
+    SENSEDU_ADC_BUFFER, which automatically handles buffer resizing
+
+    The only potential problem might arise if ADC + DMA are used without using
+    the SENSEDU_ADC_BUFFER macro. In such cases, extra care must be taken to ensure
+    that the buffer size is correctly picked.
+
+    Ideally, the library should generate a warning in such scenarios, but currently,
+    it only reports critical errors.
+
     // check if the size is the multiple of D-Cache line size (32 bytes)
     // 16bit -> 2byte memory elements
     // memory must be multiple of (32 bytes / 2 bytes) elements
@@ -122,6 +133,7 @@ void DMA_ADCEnable(ADC_TypeDef* adc) {
         error = DMA_ERROR_MEMORY_WRONG_SIZE;
         return;
     }
+    */
 
     // cache must be invalidated before reading transferred data
     // second argument in bytes

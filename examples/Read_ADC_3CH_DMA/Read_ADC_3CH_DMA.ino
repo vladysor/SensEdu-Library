@@ -9,11 +9,9 @@ uint32_t cntr = 0;
 ADC_TypeDef* adc = ADC1;
 const uint8_t adc_pin_num = 3;
 uint8_t adc_pins[adc_pin_num] = {A0, A1, A2}; 
-// must be:
-// 1. multiple of 32 bytes to ensure cache coherence
-// 2. properly aligned
-const uint16_t memory4adc_size = 64 * adc_pin_num; // allocate chunks of (4 * 32) * number of channels
-__attribute__((aligned(__SCB_DCACHE_LINE_SIZE))) uint16_t memory4adc[memory4adc_size];
+
+const uint16_t memory4adc_size = 10 * adc_pin_num;
+SENSEDU_ADC_BUFFER(memory4adc, memory4adc_size);
 
 SensEdu_ADC_Settings adc_settings = {
     .adc = adc,
